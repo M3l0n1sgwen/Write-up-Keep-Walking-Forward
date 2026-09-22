@@ -1,3 +1,75 @@
+# Keep-Walking-Forward CSAW CTF 2026
+
+Chào mọi người, hôm nay mình và Melon sẽ cùng nhau sử dụng 2 mảng kiến thức của Forensics và Reverse Engineering để xử lí một challenge MISC trong CSAW CTF 2026
+
+Đầu tiên sẽ là phần xử lí cho các phần forensics của mình 
+
+Đề bài cho ta một file challenge.pcapng, tôi sẽ kiểm tra file này bằng Scapy để xem tổng số gói tin và các IP/TCP quan trọng
+
+```
+from scapy.all import rdpcap, IP, TCP, UDP
+from collections import Counter
+
+pk = rdpcap('capture.pcapng')
+
+pairs = Counter()
+
+for p in pk:
+    if IP in p:
+        src, dst = p[IP].src, p[IP].dst
+        if TCP in p:
+            proto = 'TCP'
+            sport, dport = p[TCP].sport, p[TCP].dport
+        elif UDP in p:
+            proto = 'UDP'
+            sport, dport = p[UDP].sport, p[UDP].dport
+        else:
+            proto = 'OTHER'
+            sport, dport = 0, 0
+            
+        key = tuple(sorted([(src, sport), (dst, dport)])) + (proto,)
+        pairs[key] += 1
+
+print(f"{'Src':<22} {'Dst':<22} {'Proto':<6} {'Packets'}")
+for (a, b, proto), count in pairs.most_common():
+    print(f"{a[0]}:{a[1]:<16} {b[0]}:{b[1]:<16} {proto:<6} {count}")
+```
+
+![image](https://hackmd.io/_uploads/S10Rl6yqzg.png)
+
+Kết quả cho thấy có tổng cộng 62 gói tin và có cặp IP đặc biệt là `10.0.3.102 <-> 104.21.63.70:443`, `10.0.3.102 <-> 104.16.132.229:4433`
+
+Tiếp theo ta sẽ lọc các gói DNS trong challenge.pcapng trong wireshark để xem được các tên miền phía sau những IP này
+
+![image](https://hackmd.io/_uploads/ryAZG6k5Mx.png)
+
+Ta thấy được 2 IP đặc biệt ứng với 2 tên miền:
+>      104.21.63.70 = resources.csaw.io
+>      104.16.132.229 = c2.csaw.io
+-> Ngoài ra còn phát hiện được `DESKTOP-M919A7K.evermore.internal` là tên máy và domain nội bộ của nạn nhân (dùng cho phần xử lí RE ở bước sau)
+
+Tiếp theo còn một file vcheck.log mà để bài cho ta chưa sử dụng, vcheck.log là dạng file `sslkeylogfile` dùng để giải mã protocol TLS trong các thử thách network forensics
+
+- Đầu tiên vào Wireshark -> Edit -> Preferences -> Protocols -> TLS -> Master-Secret log filename và chọn file vcheck.log
+
+![image](https://hackmd.io/_uploads/HJHwQaJczl.png)
+
+- Sau khi giải mã, tiếp tục filter `http` để xem trực tiếp các gói tin mới được giải mã
+
+![image](https://hackmd.io/_uploads/SkqiQTJqzg.png)
+
+Sau đó ta thử tìm kiếm các file ẩn có thể lấy ra bằng cách vào File -> Export -> http, sẽ ra được các packet chứa các file như sau
+
+![image](https://hackmd.io/_uploads/Hy3MEp1qMg.png)
+
+Ta thấy rằng packet 47, 53 không có dữ liệu quan trọng, điểm đặc biệt ở packet 34 chứa 1 file nặng 78kb có tên là `version-helper` (khá đặc biệt vì đề bài là máy nhân viên bị lừa do nhấn vào một app hỗ trợ giả mạo), với hostname trùng với cái ta đã tìm được `resources.csaw.io`
+
+![image](https://hackmd.io/_uploads/HkYjNpJqGx.png)
+
+Tải được file version-helper về thành công, phần tìm kiếm còn lại Melon sẽ sử dụng các kỹ năng RE của mình để tìm ra flag
+
+
+
 ---
 title: Write-up Keep Walking Forward/rev stage
 
