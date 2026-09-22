@@ -1079,7 +1079,7 @@ open("blob_cfg.bin", "wb").write(out)
 
 import re
 strs = re.findall(rb"[\x20-\x7e]{5,}", bytes(out))
-print("strings:", [s.decode() for s in strs[:10]])   # se thay ole32;..., v4.0.30319, ...
+print("strings:", [s.decode() for s in strs[:10]])   
 
 for i in range(len(out) - 0x100):
     if out[i:i+2] == b"MZ":
